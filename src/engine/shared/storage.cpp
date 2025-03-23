@@ -101,6 +101,11 @@ public:
 		Success &= CreateFolder("ghosts", TYPE_SAVE);
 		Success &= CreateFolder("teehistorian", TYPE_SAVE);
 
+		Success &= CreateFolder("ccac", TYPE_SAVE);
+		Success &= CreateFolder("ccac/bot", TYPE_SAVE);
+		Success &= CreateFolder("ccac/clean", TYPE_SAVE);
+		Success &= CreateFolder("ccac/sus", TYPE_SAVE);
+
 		if(!Success)
 		{
 			log_error("storage", "failed to create default folders in the user directory");
@@ -957,28 +962,28 @@ IStorage *CreateStorage(IStorage::EInitializationType InitializationType, int Nu
 	return CStorage::Create(InitializationType, NumArgs, ppArguments);
 }
 
-std::unique_ptr<IStorage> CreateLocalStorage()
+IStorage *CreateLocalStorage()
 {
-	std::unique_ptr<CStorage> pStorage = std::make_unique<CStorage>();
+	CStorage *pStorage = new CStorage();
 	if(!pStorage->FindCurrentDirectory() ||
 		!pStorage->AddPath("$CURRENTDIR"))
 	{
-		return std::unique_ptr<IStorage>(nullptr);
+		delete pStorage;
+		return nullptr;
 	}
 	return pStorage;
 }
 
-std::unique_ptr<IStorage> CreateTempStorage(const char *pDirectory, int NumArgs, const char **ppArguments)
+IStorage *CreateTempStorage(const char *pDirectory, int NumArgs, const char **ppArguments)
 {
+	CStorage *pStorage = new CStorage();
 	dbg_assert(NumArgs > 0, "Expected at least one argument");
-	std::unique_ptr<CStorage> pStorage = std::make_unique<CStorage>();
 	pStorage->FindDataDirectory(ppArguments[0]);
-	if(!pStorage->FindCurrentDirectory() ||
-		!pStorage->AddPath(pDirectory) ||
-		!pStorage->AddPath("$DATADIR") ||
-		!pStorage->AddPath("$CURRENTDIR"))
+	pStorage->FindCurrentDirectory();
+	if(!pStorage->AddPath(pDirectory) || !pStorage->AddPath("$DATADIR") || !pStorage->AddPath("$CURRENTDIR"))
 	{
-		return std::unique_ptr<IStorage>(nullptr);
+		delete pStorage;
+		return nullptr;
 	}
 	return pStorage;
 }

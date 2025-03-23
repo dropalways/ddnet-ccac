@@ -14,6 +14,7 @@
 
 #include "image.h"
 #include "sound.h"
+#include <engine/shared/config.h>
 
 // compatibility with old sound layers
 class CSoundSourceDeprecated

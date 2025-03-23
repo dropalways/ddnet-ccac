@@ -62,6 +62,11 @@
 #include "components/touch_controls.h"
 #include "components/voting.h"
 
+// #include "components/chillerbot/chillconsole.h"
+#include "components/ccac/chatcommand.h"
+#include "components/ccac/chillerbotux.h"
+#include "components/ccac/warlist.h"
+
 #include <vector>
 
 class CGameInfo
@@ -173,6 +178,13 @@ public:
 	CGhost m_Ghost;
 
 	CTooltips m_Tooltips;
+
+	// chillerbot-ux
+
+	CChillerBotUX m_ChillerBotUX;
+	// CChillConsole m_ChillConsole;
+	CWarList m_WarList;
+	CChatCommand m_ChatCommand;
 
 private:
 	std::vector<class CComponent *> m_vpAll;
@@ -304,8 +316,6 @@ public:
 	};
 	int m_ServerMode;
 	CGameInfo m_GameInfo;
-
-	char m_aSavedLocalRconPassword[sizeof(g_Config.m_SvRconPassword)] = "";
 
 	int m_DemoSpecId;
 
@@ -617,6 +627,7 @@ public:
 
 	// actions
 	// TODO: move these
+	void SendFinishName();
 	void SendSwitchTeam(int Team) const;
 	void SendStartInfo7(bool Dummy);
 	void SendSkinChange7(bool Dummy);

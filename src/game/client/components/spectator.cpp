@@ -34,14 +34,14 @@ bool CSpectator::CanChangeSpectatorId()
 void CSpectator::SpectateNext(bool Reverse)
 {
 	int CurIndex = -1;
-	const CNetObj_PlayerInfo **paPlayerInfos = m_pClient->m_Snap.m_apInfoByDDTeamName;
+	const CNetObj_PlayerInfo **apPlayerInfos = m_pClient->m_Snap.m_apInfoByDDTeamName;
 
 	// m_SpectatorId may be uninitialized if m_Active is false
 	if(m_pClient->m_Snap.m_SpecInfo.m_Active)
 	{
 		for(int i = 0; i < MAX_CLIENTS; i++)
 		{
-			if(paPlayerInfos[i] && paPlayerInfos[i]->m_ClientId == m_pClient->m_Snap.m_SpecInfo.m_SpectatorId)
+			if(apPlayerInfos[i] && apPlayerInfos[i]->m_ClientId == m_pClient->m_Snap.m_SpecInfo.m_SpectatorId)
 			{
 				CurIndex = i;
 				break;
@@ -74,7 +74,7 @@ void CSpectator::SpectateNext(bool Reverse)
 		if(PlayerIndex < 0)
 			PlayerIndex += MAX_CLIENTS;
 
-		const CNetObj_PlayerInfo *pPlayerInfo = paPlayerInfos[PlayerIndex];
+		const CNetObj_PlayerInfo *pPlayerInfo = apPlayerInfos[PlayerIndex];
 		if(pPlayerInfo && pPlayerInfo->m_Team != TEAM_SPECTATORS)
 		{
 			Spectate(pPlayerInfo->m_ClientId);

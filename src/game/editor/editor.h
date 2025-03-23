@@ -275,6 +275,13 @@ public:
 
 class CEditor : public IEditor
 {
+	// chillerbot-ux START
+public:
+	void BrushDrawChiller(const std::shared_ptr<CLayerTiles> &pLayer, const std::shared_ptr<CLayerTiles> &pBrush, vec2 WorldPos);
+
+private:
+	// chillerbot-ux END
+
 	class IInput *m_pInput = nullptr;
 	class IClient *m_pClient = nullptr;
 	class IConfigManager *m_pConfigManager = nullptr;
@@ -455,17 +462,15 @@ public:
 		m_TeleCheckpointNumber = 1;
 		m_ViewTeleNumber = 0;
 
-		m_TuningNum = 1;
-		m_ViewTuning = 0;
-
 		m_SwitchNum = 1;
+		m_TuningNum = 1;
 		m_SwitchDelay = 0;
 		m_SpeedupForce = 50;
 		m_SpeedupMaxSpeed = 0;
 		m_SpeedupAngle = 0;
 		m_LargeLayerWasWarned = false;
 		m_PreventUnusedTilesWasWarned = false;
-		m_AllowPlaceUnusedTiles = EUnusedEntities::NOT_ALLOWED;
+		m_AllowPlaceUnusedTiles = EUnusedEntities::ALLOWED_EXPLICIT;
 		m_BrushDrawDestructive = true;
 	}
 
@@ -1181,7 +1186,6 @@ public:
 	unsigned char m_ViewTeleNumber;
 
 	unsigned char m_TuningNum;
-	unsigned char m_ViewTuning;
 
 	unsigned char m_SpeedupForce;
 	unsigned char m_SpeedupMaxSpeed;
@@ -1194,7 +1198,6 @@ public:
 	void AdjustBrushSpecialTiles(bool UseNextFree, int Adjust = 0);
 	int FindNextFreeSwitchNumber();
 	int FindNextFreeTeleNumber(bool Checkpoint = false);
-	int FindNextFreeTuneNumber();
 
 	// Undo/Redo
 	CEditorHistory m_EditorHistory;

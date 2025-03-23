@@ -131,6 +131,11 @@ class CMapLayers : public CComponent
 	void LayersOfGroupCount(CMapItemGroup *pGroup, int &TileLayerCount, int &QuadLayerCount, bool &PassedGameLayer);
 
 public:
+	// chillerbot-ux START
+	// chillerbot-ux for minetee
+	void RefreshTileBuffers(const std::function<void()> &RenderLoading);
+	// chillerbot-ux END
+
 	enum
 	{
 		TYPE_BACKGROUND = 0,

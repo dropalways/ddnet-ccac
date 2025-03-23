@@ -1351,7 +1351,7 @@ void CEditor::DoToolbarLayers(CUIRect ToolBar)
 					{
 						pButtonName = "Tune";
 						pfnPopupFunc = PopupTune;
-						Rows = 2;
+						Rows = 1;
 					}
 					else if(pS == m_Map.m_pTeleLayer)
 					{
@@ -1998,7 +1998,7 @@ void CEditor::ApplyAlignments(const std::vector<SAlignmentInfo> &vAlignments, in
 	if(vAlignments.empty())
 		return;
 
-	// Find X and Y alignment
+	// Find X and Y aligment
 	const int *pAlignedX = nullptr;
 	const int *pAlignedY = nullptr;
 
@@ -2186,7 +2186,7 @@ void CEditor::DoQuad(int LayerIndex, const std::shared_ptr<CLayerQuads> &pLayer,
 			}
 		}
 
-		// Draw axis and alignments when moving
+		// Draw axis and aligments when moving
 		if(s_Operation == OP_MOVE_PIVOT || s_Operation == OP_MOVE_ALL)
 		{
 			EAxis Axis = GetDragAxis(s_LastOffset.x, s_LastOffset.y);
@@ -3344,7 +3344,9 @@ void CEditor::DoMapEditor(CUIRect View)
 									std::shared_ptr<CLayerTiles> pBrushLayer = std::static_pointer_cast<CLayerTiles>(m_pBrush->m_vpLayers[BrushIndex]);
 
 									if(pLayer->m_Tele <= pBrushLayer->m_Tele && pLayer->m_Speedup <= pBrushLayer->m_Speedup && pLayer->m_Front <= pBrushLayer->m_Front && pLayer->m_Game <= pBrushLayer->m_Game && pLayer->m_Switch <= pBrushLayer->m_Switch && pLayer->m_Tune <= pBrushLayer->m_Tune)
+									{
 										pLayer->BrushDraw(pBrushLayer, vec2(wx, wy));
+									}
 								}
 								else
 								{
@@ -3675,8 +3677,7 @@ void CEditor::DoMapEditor(CUIRect View)
 		Graphics()->LinesEnd();
 	}
 
-	if(!m_ShowPicker)
-		MapView()->ProofMode()->RenderScreenSizes();
+	MapView()->ProofMode()->RenderScreenSizes();
 
 	if(!m_ShowPicker && m_ShowTileInfo != SHOW_TILE_OFF && m_ShowEnvelopePreview != SHOWENV_NONE && GetSelectedLayer(0) && GetSelectedLayer(0)->m_Type == LAYERTYPE_QUADS)
 	{
@@ -3692,6 +3693,7 @@ void CEditor::DoMapEditor(CUIRect View)
 	}
 
 	Ui()->MapScreen();
+	//Ui()->ClipDisable();
 }
 
 void CEditor::SetHotQuadPoint(const std::shared_ptr<CLayerQuads> &pLayer)
@@ -4241,13 +4243,6 @@ void CEditor::RenderLayers(CUIRect LayersBox)
 
 						if(m_vSelectedLayers.size() > 1)
 						{
-							// move right clicked layer to first index to render correct popup
-							if(m_vSelectedLayers[0] != i)
-							{
-								auto Position = std::find(m_vSelectedLayers.begin(), m_vSelectedLayers.end(), i);
-								std::swap(m_vSelectedLayers[0], *Position);
-							}
-
 							bool AllTile = true;
 							for(size_t j = 0; AllTile && j < m_vSelectedLayers.size(); j++)
 							{
@@ -5674,10 +5669,9 @@ void CEditor::RenderFileDialog()
 	else
 		s_ConfirmDeletePopupContext.Reset();
 
-	if(!m_FileDialogShowingRoot && m_FileDialogStorageType == IStorage::TYPE_SAVE)
-	{
-		ButtonBar.VSplitLeft(70.0f, &Button, &ButtonBar);
-		if(DoButton_Editor(&s_NewFolderButton, "New folder", 0, &Button, BUTTONFLAG_LEFT, nullptr))
+
+	ButtonBar.VSplitLeft(70.0f, &Button, &ButtonBar);
+	if(DoButton_Editor(&s_NewFolderButton, "New folder", 0, &Button, BUTTONFLAG_LEFT, nullptr))
 		{
 			m_FileDialogNewFolderNameInput.Clear();
 			static SPopupMenuId s_PopupNewFolderId;
@@ -5686,7 +5680,7 @@ void CEditor::RenderFileDialog()
 			Ui()->DoPopupMenu(&s_PopupNewFolderId, Width / 2.0f - PopupWidth / 2.0f, Height / 2.0f - PopupHeight / 2.0f, PopupWidth, PopupHeight, this, PopupNewFolder);
 			Ui()->SetActiveItem(&m_FileDialogNewFolderNameInput);
 		}
-	}
+	
 }
 
 void CEditor::RefreshFilteredFileList()
@@ -7935,7 +7929,7 @@ void CEditor::RenderMenubar(CUIRect MenuBar)
 	if(m_Map.m_Modified)
 	{
 		TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
-		TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
+		TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
 		Ui()->DoLabel(&ChangedIndicator, FONT_ICON_CIRCLE, 8.0f, TEXTALIGN_MC);
 		TextRender()->SetRenderFlags(0);
 		TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
@@ -8953,7 +8947,19 @@ void CEditor::HandleWriterFinishJobs()
 		CServerInfo CurrentServerInfo;
 		Client()->GetServerInfo(&CurrentServerInfo);
 
-		if(net_addr_is_local(&Client()->ServerAddress()))
+		NETADDR pAddr = Client()->ServerAddress();
+		char aAddrStr[NETADDR_MAXSTRSIZE];
+		net_addr_str(&Client()->ServerAddress(), aAddrStr, sizeof(aAddrStr), true);
+
+		// and if we're on a local address
+		bool IsLocalAddress = false;
+		if(pAddr.ip[0] == 127 || pAddr.ip[0] == 10 || (pAddr.ip[0] == 192 && pAddr.ip[1] == 168) || (pAddr.ip[0] == 172 && (pAddr.ip[1] >= 16 && pAddr.ip[1] <= 31)))
+			IsLocalAddress = true;
+
+		if(str_startswith(aAddrStr, "[fe80:") || str_startswith(aAddrStr, "[::1"))
+			IsLocalAddress = true;
+
+		if(IsLocalAddress)
 		{
 			char aMapName[128];
 			IStorage::StripPathAndExtension(pJob->GetRealFileName(), aMapName, sizeof(aMapName));
@@ -9308,12 +9314,11 @@ void CEditor::RedoLastAction()
 
 void CEditor::AdjustBrushSpecialTiles(bool UseNextFree, int Adjust)
 {
-	// Adjust m_Angle of speedup or m_Number field of tune, switch and tele tiles by `Adjust` if `UseNextFree` is false
-	// If `Adjust` is 0 and `UseNextFree` is false, then update numbers of brush tiles to global values
+	// Adjust m_Number field of tune, switch and tele tiles by `Adjust` if `UseNextFree` is false
 	// If true, then use the next free number instead
 
-	auto &&AdjustNumber = [Adjust](auto &Number, short Limit = 255) {
-		Number = ((Number + Adjust) - 1 + Limit) % Limit + 1;
+	auto &&AdjustNumber = [Adjust](unsigned char &Number) {
+		Number = ((Number + Adjust) - 1 + 255) % 255 + 1;
 	};
 
 	for(auto &pLayer : m_pBrush->m_vpLayers)
@@ -9323,6 +9328,7 @@ void CEditor::AdjustBrushSpecialTiles(bool UseNextFree, int Adjust)
 
 		std::shared_ptr<CLayerTiles> pLayerTiles = std::static_pointer_cast<CLayerTiles>(pLayer);
 
+		// Only handle tele, switch and tune layers
 		if(pLayerTiles->m_Tele)
 		{
 			int NextFreeTeleNumber = FindNextFreeTeleNumber();
@@ -9395,32 +9401,6 @@ void CEditor::AdjustBrushSpecialTiles(bool UseNextFree, int Adjust)
 				}
 			}
 		}
-		else if(pLayerTiles->m_Speedup)
-		{
-			if(!UseNextFree)
-			{
-				std::shared_ptr<CLayerSpeedup> pSpeedupLayer = std::static_pointer_cast<CLayerSpeedup>(pLayer);
-				for(int y = 0; y < pSpeedupLayer->m_Height; y++)
-				{
-					for(int x = 0; x < pSpeedupLayer->m_Width; x++)
-					{
-						int i = y * pSpeedupLayer->m_Width + x;
-						if(!IsValidSpeedupTile(pSpeedupLayer->m_pTiles[i].m_Index))
-							continue;
-
-						if(Adjust != 0)
-						{
-							AdjustNumber(pSpeedupLayer->m_pSpeedupTile[i].m_Angle, 359);
-						}
-						else
-						{
-							pSpeedupLayer->m_pSpeedupTile[i].m_Angle = m_SpeedupAngle;
-							pSpeedupLayer->m_SpeedupAngle = m_SpeedupAngle;
-						}
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -9445,20 +9425,6 @@ int CEditor::FindNextFreeTeleNumber(bool Checkpoint)
 	for(int i = 1; i <= 255; i++)
 	{
 		if(!m_Map.m_pTeleLayer->ContainsElementWithId(i, Checkpoint))
-		{
-			Number = i;
-			break;
-		}
-	}
-	return Number;
-}
-
-int CEditor::FindNextFreeTuneNumber()
-{
-	int Number = -1;
-	for(int i = 1; i <= 255; i++)
-	{
-		if(!m_Map.m_pTuneLayer->ContainsElementWithId(i))
 		{
 			Number = i;
 			break;

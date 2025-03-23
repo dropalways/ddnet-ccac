@@ -6,7 +6,6 @@
 
 #include <SDL.h>
 #include <SDL_messagebox.h>
-#include <SDL_vulkan.h>
 
 #include <base/math.h>
 #include <cstdlib>
@@ -890,7 +889,7 @@ const char *CGraphicsBackend_SDL_GL::GetScreenName(int Screen) const
 	return pName == nullptr ? "unknown/error" : pName;
 }
 
-static void DisplayToVideoMode(CVideoMode *pVMode, SDL_DisplayMode *pMode, float HiDPIScale, int RefreshRate)
+static void DisplayToVideoMode(CVideoMode *pVMode, SDL_DisplayMode *pMode, int HiDPIScale, int RefreshRate)
 {
 	pVMode->m_CanvasWidth = pMode->w * HiDPIScale;
 	pVMode->m_CanvasHeight = pMode->h * HiDPIScale;
@@ -903,7 +902,7 @@ static void DisplayToVideoMode(CVideoMode *pVMode, SDL_DisplayMode *pMode, float
 	pVMode->m_Format = pMode->format;
 }
 
-void CGraphicsBackend_SDL_GL::GetVideoModes(CVideoMode *pModes, int MaxModes, int *pNumModes, float HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenId)
+void CGraphicsBackend_SDL_GL::GetVideoModes(CVideoMode *pModes, int MaxModes, int *pNumModes, int HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenId)
 {
 	SDL_DisplayMode DesktopMode;
 	int MaxModesAvailable = SDL_GetNumDisplayModes(ScreenId);
@@ -967,7 +966,7 @@ void CGraphicsBackend_SDL_GL::GetVideoModes(CVideoMode *pModes, int MaxModes, in
 	*pNumModes = NumModesInserted;
 }
 
-void CGraphicsBackend_SDL_GL::GetCurrentVideoMode(CVideoMode &CurMode, float HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenId)
+void CGraphicsBackend_SDL_GL::GetCurrentVideoMode(CVideoMode &CurMode, int HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenId)
 {
 	SDL_DisplayMode DpMode;
 	// if "real" fullscreen, obtain the video mode for that
@@ -988,13 +987,9 @@ void CGraphicsBackend_SDL_GL::GetCurrentVideoMode(CVideoMode &CurMode, float HiD
 		{
 			int Width = 0;
 			int Height = 0;
-			if(m_BackendType != EBackendType::BACKEND_TYPE_VULKAN)
-				SDL_GL_GetDrawableSize(m_pWindow, &Width, &Height);
-			else
-				SDL_Vulkan_GetDrawableSize(m_pWindow, &Width, &Height);
-			// SDL video modes are in screen space which are logical pixels
-			DpMode.w = Width / HiDPIScale;
-			DpMode.h = Height / HiDPIScale;
+			SDL_GL_GetDrawableSize(m_pWindow, &Width, &Height);
+			DpMode.w = Width;
+			DpMode.h = Height;
 		}
 	}
 	DisplayToVideoMode(&CurMode, &DpMode, HiDPIScale, DpMode.refresh_rate);
@@ -1150,8 +1145,10 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 	}
 
 	// set flags
-	int SdlFlags = SDL_WINDOW_INPUT_GRABBED | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_MOUSE_FOCUS | SDL_WINDOW_ALLOW_HIGHDPI;
+	int SdlFlags = SDL_WINDOW_INPUT_GRABBED | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_MOUSE_FOCUS;
 	SdlFlags |= (IsOpenGLFamilyBackend) ? SDL_WINDOW_OPENGL : SDL_WINDOW_VULKAN;
+	if(Flags & IGraphicsBackend::INITFLAG_HIGHDPI)
+		SdlFlags |= SDL_WINDOW_ALLOW_HIGHDPI;
 	if(Flags & IGraphicsBackend::INITFLAG_RESIZABLE)
 		SdlFlags |= SDL_WINDOW_RESIZABLE;
 	if(Flags & IGraphicsBackend::INITFLAG_BORDERLESS)
@@ -1246,16 +1243,10 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 	InitError = IsVersionSupportedGlew(m_BackendType, g_Config.m_GfxGLMajor, g_Config.m_GfxGLMinor, g_Config.m_GfxGLPatch, GlewMajor, GlewMinor, GlewPatch);
 
 	// SDL_GL_GetDrawableSize reports HiDPI resolution even with SDL_WINDOW_ALLOW_HIGHDPI not set, which is wrong
-	if(SdlFlags & SDL_WINDOW_ALLOW_HIGHDPI)
-	{
-		if(IsOpenGLFamilyBackend)
-			SDL_GL_GetDrawableSize(m_pWindow, pCurrentWidth, pCurrentHeight);
-		else
-			SDL_Vulkan_GetDrawableSize(m_pWindow, pCurrentWidth, pCurrentHeight);
-	}
+	if(SdlFlags & SDL_WINDOW_ALLOW_HIGHDPI && IsOpenGLFamilyBackend)
+		SDL_GL_GetDrawableSize(m_pWindow, pCurrentWidth, pCurrentHeight);
 	else
 		SDL_GetWindowSize(m_pWindow, pCurrentWidth, pCurrentHeight);
-	SDL_GetWindowSize(m_pWindow, pWidth, pHeight);
 
 	if(IsOpenGLFamilyBackend)
 	{
@@ -1624,10 +1615,7 @@ bool CGraphicsBackend_SDL_GL::ResizeWindow(int w, int h, int RefreshRate)
 
 void CGraphicsBackend_SDL_GL::GetViewportSize(int &w, int &h)
 {
-	if(m_BackendType != EBackendType::BACKEND_TYPE_VULKAN)
-		SDL_GL_GetDrawableSize(m_pWindow, &w, &h);
-	else
-		SDL_Vulkan_GetDrawableSize(m_pWindow, &w, &h);
+	SDL_GL_GetDrawableSize(m_pWindow, &w, &h);
 }
 
 void CGraphicsBackend_SDL_GL::NotifyWindow()

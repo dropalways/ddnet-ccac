@@ -12,6 +12,10 @@
 #include <game/generated/protocol7.h>
 
 #include <game/client/animstate.h>
+
+#include <game/client/components/ccac/chillerbotux.h>
+
+#include <game/client/components/console.h>
 #include <game/client/components/scoreboard.h>
 #include <game/client/components/skins.h>
 #include <game/client/components/sounds.h>
@@ -608,7 +612,7 @@ void CChat::StoreSave(const char *pText)
 	/*
 	for(int i = 0; i < MAX_CLIENTS; i++)
 	{
-		const CNetObj_PlayerInfo *pInfo = GameClient()->m_Snap.m_paInfoByDDTeam[i];
+		const CNetObj_PlayerInfo *pInfo = GameClient()->m_Snap.m_apInfoByDDTeam[i];
 		if(!pInfo)
 			continue;
 		pInfo->m_Team // All 0
@@ -1327,6 +1331,9 @@ void CChat::SendChat(int Team, const char *pLine)
 {
 	// don't send empty messages
 	if(*str_utf8_skip_whitespaces(pLine) == '\0')
+		return;
+
+	if(!m_pClient->m_ChillerBotUX.OnSendChat(Team, pLine))
 		return;
 
 	m_LastChatSend = time();

@@ -110,14 +110,9 @@ int main(int argc, const char **argv)
 {
 	CCmdlineFix CmdlineFix(&argc, &argv);
 	log_set_global_logger_default();
-
-	std::unique_ptr<IStorage> pStorage = std::unique_ptr<IStorage>(CreateStorage(IStorage::EInitializationType::SERVER, argc, argv));
+	IStorage *pStorage = CreateStorage(IStorage::EInitializationType::SERVER, argc, argv);
 	if(!pStorage)
-	{
-		log_error("dummy_map", "Error creating server storage");
 		return -1;
-	}
-
-	CreateEmptyMap(pStorage.get());
+	CreateEmptyMap(pStorage);
 	return 0;
 }

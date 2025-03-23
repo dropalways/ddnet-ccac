@@ -231,7 +231,7 @@ log_info "Copying libraries..."
 
 function copy_libs() {
 	mkdir -p "lib/$2"
-	cp "$ANDROID_SUB_BUILD_DIR/$1/libDDNet.so" "lib/$2" || exit 1
+	cp "$ANDROID_SUB_BUILD_DIR/$1/libchillerbot-ux.so" "lib/$2" || exit 1
 	cp "$ANDROID_SUB_BUILD_DIR/$1/libDDNet-Server.so" "lib/$2" || exit 1
 }
 

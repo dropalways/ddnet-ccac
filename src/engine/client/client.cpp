@@ -8,6 +8,8 @@
 #include <base/math.h>
 #include <base/system.h>
 
+#include <game/client/components/ccac/version.h>
+
 #include <engine/external/json-parser/json.h>
 
 #include <engine/config.h>
@@ -204,6 +206,46 @@ int CClient::SendMsg(int Conn, CMsgPacker *pMsg, int Flags)
 	return 0;
 }
 
+void CClient::ChillerBotLoadMap(const char *pMap)
+{
+	m_State = IClient::STATE_OFFLINE;
+	// CServerInfo Info;
+	// GetServerInfo(&Info);
+	char aCurrentMap[IO_MAX_PATH_LENGTH];
+	str_copy(aCurrentMap, GetCurrentMapPath(), sizeof(aCurrentMap));
+	Disconnect();
+	if(!m_pMap->Load(pMap))
+	{
+		char aErrorMsg[128];
+		str_format(aErrorMsg, sizeof(aErrorMsg), "map '%s' not found", pMap);
+		m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "client", aErrorMsg);
+		if(!m_pMap->Load(aCurrentMap))
+		{
+			str_format(aErrorMsg, sizeof(aErrorMsg), "map '%s' not found", aCurrentMap);
+			m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "client", aErrorMsg);
+		}
+	}
+	m_pGameClient->OnConnected();
+	// SetServerInfo(&Info);
+	m_State = IClient::STATE_ONLINE;
+}
+
+void CClient::SendChillerBotUX(bool Dummy)
+{
+	CMsgPacker Msg(NETMSG_IAMCHILLERBOT, true);
+	Msg.AddInt(CHILLERBOT_VERSIONNR);
+	Msg.AddString("ux", 0);
+	char aBuf[2048];
+	str_format(aBuf, sizeof(aBuf),
+		"chillerbot-ux %s (DDNet %s, built on %s, git rev %s)",
+		CHILLERBOT_VERSION,
+		GAME_VERSION,
+		CHILLERBOT_BUILD_DATE,
+		GIT_SHORTREV_HASH);
+	Msg.AddString(aBuf, 0);
+	SendMsg(Dummy, &Msg, MSGFLAG_VITAL);
+}
+
 int CClient::SendMsgActive(CMsgPacker *pMsg, int Flags)
 {
 	return SendMsg(g_Config.m_ClDummy, pMsg, Flags);
@@ -211,6 +253,8 @@ int CClient::SendMsgActive(CMsgPacker *pMsg, int Flags)
 
 void CClient::SendInfo(int Conn)
 {
+	SendChillerBotUX(Conn == 1);
+
 	CMsgPacker MsgVer(NETMSG_CLIENTVER, true);
 	MsgVer.AddRaw(&m_ConnectionId, sizeof(m_ConnectionId));
 	MsgVer.AddInt(GameClient()->DDNetVersion());
@@ -2947,7 +2991,7 @@ void CClient::Update()
 
 	if(m_ReconnectTime > 0 && time_get() > m_ReconnectTime)
 	{
-		if(State() != STATE_ONLINE)
+		if(State() == STATE_OFFLINE)
 			Connect(m_aConnectAddressStr);
 		m_ReconnectTime = 0;
 	}
@@ -3098,8 +3142,6 @@ void CClient::Run()
 
 	GameClient()->OnInit();
 
-	m_Fifo.Init(m_pConsole, g_Config.m_ClInputFifo, CFGFLAG_CLIENT);
-
 	m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "client", "version " GAME_RELEASE_VERSION " on " CONF_PLATFORM_STRING " " CONF_ARCH_STRING, ColorRGBA(0.7f, 0.7f, 1.0f, 1.0f));
 	if(GIT_SHORTREV_HASH)
 	{
@@ -3116,6 +3158,8 @@ void CClient::Run()
 
 	// process pending commands
 	m_pConsole->StoreCommands(false);
+
+	m_Fifo.Init(m_pConsole, g_Config.m_ClInputFifo, CFGFLAG_CLIENT);
 
 	InitChecksum();
 	m_pConsole->InitChecksum(ChecksumData());
@@ -3176,6 +3220,7 @@ void CClient::Run()
 		if(m_DummySendConnInfo && m_aNetClient[CONN_DUMMY].State() == NETSTATE_ONLINE)
 		{
 			m_DummySendConnInfo = false;
+
 			SendInfo(CONN_DUMMY);
 			m_aNetClient[CONN_DUMMY].Update();
 			SendReady(CONN_DUMMY);
@@ -4384,17 +4429,6 @@ void CClient::ConchainReplays(IConsole::IResult *pResult, void *pUserData, ICons
 	}
 }
 
-void CClient::ConchainInputFifo(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
-{
-	CClient *pSelf = (CClient *)pUserData;
-	pfnCallback(pResult, pCallbackUserData);
-	if(pSelf->m_Fifo.IsInit())
-	{
-		pSelf->m_Fifo.Shutdown();
-		pSelf->m_Fifo.Init(pSelf->m_pConsole, pSelf->Config()->m_ClInputFifo, CFGFLAG_CLIENT);
-	}
-}
-
 void CClient::ConchainLoglevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData)
 {
 	CClient *pSelf = (CClient *)pUserData;
@@ -4460,7 +4494,6 @@ void CClient::RegisterCommands()
 
 	m_pConsole->Chain("cl_timeout_seed", ConchainTimeoutSeed, this);
 	m_pConsole->Chain("cl_replays", ConchainReplays, this);
-	m_pConsole->Chain("cl_input_fifo", ConchainInputFifo, this);
 
 	m_pConsole->Chain("password", ConchainPassword, this);
 

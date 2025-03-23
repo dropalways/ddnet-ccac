@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12...3.27.4)
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15 CACHE INTERNAL "Minimum macOS deployment version")
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15 CACHE INTERNAL "")
 if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 10.15)
   message(WARNING "Building for macOS < 10.15 is not supported")
 endif()
@@ -23,9 +23,9 @@ else()
 endif()
 
 if(VERSION_PATCH STREQUAL "0")
-  project(DDNet VERSION ${VERSION_MAJOR}.${VERSION_MINOR})
+  project(ddnet-ccac VERSION ${VERSION_MAJOR}.${VERSION_MINOR})
 else()
-  project(DDNet VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
+  project(ddnet-ccac VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 endif()
 
 set(ORIGINAL_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
@@ -101,11 +101,12 @@ option(WEBSOCKETS "Enable websockets support" OFF)
 option(MYSQL "Enable mysql support" OFF)
 option(TEST_MYSQL "Test mysql support in unit tests (also sets -DMYSQL=ON)" OFF)
 option(AUTOUPDATE "Enable the autoupdater" OFF)
-option(INFORM_UPDATE "Inform about available updates" ON)
+option(INFORM_UPDATE "Inform about available updates" OFF)
 option(VIDEORECORDER "Enable video recording support via FFmpeg" ON)
 option(UPNP "Enable UPnP support" OFF)
 option(ANTIBOT "Enable support for a dynamic anticheat library (not provided, see src/antibot for interface if you want to implement your own)" OFF)
 option(HEADLESS_CLIENT "Build the client without graphics" OFF)
+option(CURSES_CLIENT "Build the client in curses mode (terminal ui)" OFF)
 option(CLIENT "Compile client" ON)
 option(SERVER "Compile server" ON)
 option(TOOLS "Compile tools" ON)
@@ -169,7 +170,11 @@ if(NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 set(SERVER_EXECUTABLE DDNet-Server CACHE STRING "Name of the built server executable")
-set(CLIENT_EXECUTABLE DDNet CACHE STRING "Name of the build client executable")
+if(CURSES_CLIENT)
+  set(CLIENT_EXECUTABLE term-ux CACHE STRING "Name of the build client executable")
+else()
+  set(CLIENT_EXECUTABLE ${CMAKE_PROJECT_NAME} CACHE STRING "Name of the build client executable")
+endif()
 
 ########################################################################
 # Compiler flags
@@ -746,8 +751,12 @@ elseif(TARGET_OS STREQUAL "android")
 else()
   find_package(Notify)
   find_package(OpenGL)
-  set(PLATFORM_CLIENT_LIBS ${OPENGL_gl_LIBRARY} ${NOTIFY_LIBRARIES})
-  set(PLATFORM_CLIENT_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR} ${NOTIFY_INCLUDE_DIRS})
+  # ncurses wide for utf8 support
+  # https://github.com/Kitware/CMake/blob/f0a2ec12e2743a7be39201e2bc563ab37debd791/Modules/FindCurses.cmake#L56
+  set(CURSES_NEED_WIDE TRUE)
+  find_package(Curses)
+  set(PLATFORM_CLIENT_LIBS ${OPENGL_gl_LIBRARY} ${NOTIFY_LIBRARIES} ${CURSES_LIBRARIES})
+  set(PLATFORM_CLIENT_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR} ${NOTIFY_INCLUDE_DIRS} ${CURSES_INCLUDE_DIRS})
   set(PLATFORM_CLIENT)
   if(TARGET_OS STREQUAL "linux")
     set(PLATFORM_LIBS)
@@ -936,6 +945,8 @@ set(RUST_SRC
       Cargo.lock
 )
 set(RUST_TARGETS engine_shared)
+
+
 if(NOT CMAKE_OSX_ARCHITECTURES)
   set(RUST_OUTPUTS)
   foreach(rust_target ${RUST_TARGETS})
@@ -1412,16 +1423,19 @@ set(EXPECTED_DATA
   editor/checker.png
   editor/cursor.png
   editor/cursor_resize.png
+  editor/cursor_text.png
   editor/entities/DDNet.png
   editor/entities/F-DDrace.png
   editor/entities/FNG.png
   editor/entities/Race.png
   editor/entities/Vanilla.png
   editor/entities/blockworlds.png
+  editor/entities/fddracepp.png
   editor/entities_clear/blockworlds.png
   editor/entities_clear/ddnet.png
   editor/entities_clear/ddrace.png
   editor/entities_clear/f-ddrace.png
+  editor/entities_clear/fddracepp.png
   editor/entities_clear/fng.png
   editor/entities_clear/race.png
   editor/entities_clear/vanilla.png
@@ -1492,6 +1506,7 @@ set(EXPECTED_DATA
   mapres/ddmax_freeze.png
   mapres/ddnet_grass.png
   mapres/ddnet_start.png
+  mapres/ddnet_tiles.json
   mapres/ddnet_tiles.png
   mapres/ddnet_walls.png
   mapres/desert_background.png
@@ -1504,7 +1519,9 @@ set(EXPECTED_DATA
   mapres/desert_sun.png
   mapres/entities.png
   mapres/fadeout.png
+  mapres/font_teeworlds.json
   mapres/font_teeworlds.png
+  mapres/font_teeworlds_alt.json
   mapres/font_teeworlds_alt.png
   mapres/generic_clear.png
   mapres/generic_deathtiles.png
@@ -1863,6 +1880,13 @@ foreach(datafile ${DATA})
   file(MAKE_DIRECTORY ${DESTINATION})
   file(COPY ${datafile} DESTINATION ${DESTINATION})
 endforeach()
+set(INTEGRATION_TEST_COPY_FILES
+  lsan.supp
+  memcheck.supp
+  ubsan.supp
+  valgrind.supp
+  scripts/integration_test.sh
+)
 set(COPY_FILES
   ${CURL_COPY_FILES}
   ${FREETYPE_COPY_FILES}
@@ -1878,6 +1902,9 @@ set(COPY_FILES
   ${SSP_COPY_FILES}
 )
 file(COPY ${COPY_FILES} DESTINATION .)
+# Don't add integration test files to COPY_FILES since we don't want to add
+# them in cpack.
+file(COPY ${INTEGRATION_TEST_COPY_FILES} DESTINATION .)
 
 set(COPY_DIRS ${SDL2_COPY_DIRS})
 file(COPY ${COPY_DIRS} DESTINATION .)
@@ -1984,8 +2011,13 @@ add_custom_command(OUTPUT "src/game/generated/wordlist.h"
 set_src(BASE GLOB_RECURSE src/base
   bezier.cpp
   bezier.h
+  ccurses.cpp
+  ccurses.h
+  chillerbot/curses_colors.cpp
+  chillerbot/curses_colors.h
   color.cpp
   color.h
+  curses.h
   detect.h
   dynamic.h
   hash.cpp
@@ -2048,6 +2080,7 @@ set_src(ENGINE_INTERFACE GLOB src/engine
 set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   assertion_logger.cpp
   assertion_logger.h
+  chillerbot/variables.h
   compression.cpp
   compression.h
   config.cpp
@@ -2203,6 +2236,7 @@ set(LIBS
   ${WEBSOCKETS_LIBRARIES}
   ${ZLIB_LIBRARIES}
   ${PLATFORM_LIBS}
+  ${CURSES_LIBRARIES}
   # Add pthreads (on non-Windows) at the end, so that other libraries can depend
   # on it.
   ${CMAKE_THREAD_LIBS_INIT}
@@ -2328,6 +2362,15 @@ if(CLIENT)
     components/camera.h
     components/chat.cpp
     components/chat.h
+    components/ccac/chatcommand.cpp
+    components/ccac/chatcommand.h
+    components/ccac/chatcommands.h
+    components/ccac/chillerbotux.cpp
+    components/ccac/chillerbotux.h
+    components/ccac/version.h
+    components/ccac/warlist.cpp
+    components/ccac/warlist.h
+    components/ccac/warlist_commands_simple.cpp
     components/console.cpp
     components/console.h
     components/controls.cpp
@@ -2365,6 +2408,7 @@ if(CLIENT)
     components/menus.cpp
     components/menus.h
     components/menus_browser.cpp
+    components/menus_ccac.cpp
     components/menus_demo.cpp
     components/menus_ingame.cpp
     components/menus_settings.cpp
@@ -2555,7 +2599,7 @@ if(CLIENT)
 
   if(TARGET_OS STREQUAL "windows")
     configure_file("other/manifest/client.manifest.in" "client.manifest")
-    set(CLIENT_ICON "other/icons/DDNet.rc")
+    set(CLIENT_ICON "other/icons/${CMAKE_PROJECT_NAME}.rc")
     if(NOT MINGW)
       set(CLIENT_MANIFEST "${CMAKE_CURRENT_BINARY_DIR}/client.manifest")
     else()
@@ -2948,13 +2992,13 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src/game/generated/checksum.cpp
 # TESTS
 ########################################################################
 
-if((GTEST_FOUND OR DOWNLOAD_GTEST) AND SERVER)
+if(GTEST_FOUND OR DOWNLOAD_GTEST)
   set_src(TESTS GLOB src/test
     aio.cpp
     bezier.cpp
     blocklist_driver.cpp
     bytes_be.cpp
-    chunk_header.cpp
+    chillerbot.cpp
     color.cpp
     compression.cpp
     csv.cpp
@@ -2969,6 +3013,7 @@ if((GTEST_FOUND OR DOWNLOAD_GTEST) AND SERVER)
     jobs.cpp
     json.cpp
     jsonwriter.cpp
+    langparser.cpp
     linereader.cpp
     mapbugs.cpp
     math.cpp
@@ -3063,6 +3108,13 @@ add_custom_target(run_rust_tests
   USES_TERMINAL
   DEPENDS rust_test
   VERBATIM
+)
+
+add_custom_target(run_integration_tests
+  COMMAND ${PROJECT_BINARY_DIR}/integration_test.sh ${INTEGRATIONTESTRUNNER_ARGS}
+  COMMENT Running integration tests
+  DEPENDS game-client game-server
+  USES_TERMINAL
 )
 
 ########################################################################
@@ -3285,11 +3337,11 @@ if(NOT DEV)
   endif()
   install(TARGETS ${TARGETS_TOOLS} DESTINATION ${CMAKE_INSTALL_LIBDIR}/ddnet COMPONENT tools)
   if(TARGET game-client)
-    install(FILES other/ddnet.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications COMPONENT client)
+    install(FILES other/${CMAKE_PROJECT_NAME}.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications COMPONENT client)
   endif()
   foreach(SIZE 16 32 48 256)
     if(TARGET game-client)
-      install(FILES other/icons/DDNet_${SIZE}x${SIZE}x32.png DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/${SIZE}x${SIZE}/apps RENAME ddnet.png COMPONENT client)
+      install(FILES other/icons/${CMAKE_PROJECT_NAME}_${SIZE}x${SIZE}x32.png DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/${SIZE}x${SIZE}/apps RENAME ${CMAKE_PROJECT_NAME}.png COMPONENT client)
     endif()
     if(TARGET game-server)
       install(FILES other/icons/DDNet-Server_${SIZE}x${SIZE}x32.png DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/${SIZE}x${SIZE}/apps RENAME ddnet-server.png COMPONENT server)

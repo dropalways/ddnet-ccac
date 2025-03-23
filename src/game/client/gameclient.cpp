@@ -78,6 +78,11 @@
 #include "prediction/entities/character.h"
 #include "prediction/entities/projectile.h"
 
+// #include "components/chillerbot/chillconsole.h"
+#include "components/ccac/chatcommand.h"
+#include "components/ccac/chillerbotux.h"
+#include "components/ccac/warlist.h"
+
 using namespace std::chrono_literals;
 
 const char *CGameClient::Version() const { return GAME_VERSION; }
@@ -154,10 +159,23 @@ void CGameClient::OnConsoleInit()
 					      &m_Tooltips,
 					      &CMenus::m_Binder,
 					      &m_GameConsole,
+
+					      /* <<< chillerbot-ux */
+					      &m_ChillerBotUX,
+					      &m_WarList,
+					      &m_ChatCommand,
+					      /* >>> chillerbot-ux */
+
 					      &m_MenuBackground});
 
 	// build the input stack
 	m_vpInput.insert(m_vpInput.end(), {&CMenus::m_Binder, // this will take over all input when we want to bind a key
+
+						  /* <<< chillerbot-ux */
+						  &m_ChillerBotUX,
+						  /* &m_ChillConsole, */
+						  /* >>> chillerbot-ux */
+
 						  &m_Binds.m_SpecialBinds,
 						  &m_GameConsole,
 						  &m_Chat, // chat has higher prio, due to that you can quit it by pressing esc
@@ -503,6 +521,8 @@ void CGameClient::OnDummySwap()
 
 int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 {
+	int CurrentTee = g_Config.m_ClDummy ? !Dummy : Dummy;
+	
 	if(!Dummy)
 	{
 		return m_Controls.SnapInput(pData);
@@ -585,14 +605,8 @@ void CGameClient::OnConnected()
 	ConfigManager()->ResetGameSettings();
 	LoadMapSettings();
 
-	if(Client()->State() != IClient::STATE_DEMOPLAYBACK)
-	{
-		if(g_Config.m_ClAutoDemoOnConnect)
-			Client()->DemoRecorder_HandleAutoStart();
-
-		if(m_Menus.IsServerRunning() && m_aSavedLocalRconPassword[0] != '\0' && net_addr_is_local(&Client()->ServerAddress()))
-			Client()->RconAuth(DEFAULT_SAVED_RCON_USER, m_aSavedLocalRconPassword, g_Config.m_ClDummy);
-	}
+	if(Client()->State() != IClient::STATE_DEMOPLAYBACK && g_Config.m_ClAutoDemoOnConnect)
+		Client()->DemoRecorder_HandleAutoStart();
 }
 
 void CGameClient::OnReset()
@@ -989,11 +1003,6 @@ void CGameClient::OnMessage(int MsgId, CUnpacker *pUnpacker, int Conn, bool Dumm
 		// unpack the new tuning
 		CTuningParams NewTuning;
 		int *pParams = (int *)&NewTuning;
-
-		// No jetpack on DDNet incompatible servers,
-		// jetpack strength will be received by tune params
-		NewTuning.m_JetpackStrength = 0;
-
 		for(unsigned i = 0; i < sizeof(CTuningParams) / sizeof(int); i++)
 		{
 			// 31 is the magic number index of laser_damage
@@ -1286,11 +1295,16 @@ void CGameClient::RenderShutdownMessage()
 
 void CGameClient::OnRconType(bool UsernameReq)
 {
+	// m_ChillConsole.RequireUsername(UsernameReq);
 	m_GameConsole.RequireUsername(UsernameReq);
 }
 
 void CGameClient::OnRconLine(const char *pLine)
 {
+#if defined(CONF_CURSES_CLIENT)
+	curses_log_push(pLine);
+#endif
+	// m_ChillConsole.PrintLine(CGameConsole::CONSOLETYPE_REMOTE, pLine);
 	m_GameConsole.PrintLine(CGameConsole::CONSOLETYPE_REMOTE, pLine);
 }
 
@@ -1402,9 +1416,6 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	bool FDDrace;
 	if(Version < 1)
 	{
-		// The game type is intentionally only available inside this
-		// `if`. Game type sniffing should be avoided and ideally not
-		// extended. Mods should set the relevant game flags instead.
 		const char *pGameType = pFallbackServerInfo->m_aGameType;
 		Race = str_find_nocase(pGameType, "race") || str_find_nocase(pGameType, "fastcap");
 		FastCap = str_find_nocase(pGameType, "fastcap");
@@ -2783,6 +2794,22 @@ void CGameClient::SendSwitchTeam(int Team) const
 	CNetMsg_Cl_SetTeam Msg;
 	Msg.m_Team = Team;
 	Client()->SendPackMsgActive(&Msg, MSGFLAG_VITAL);
+}
+
+// TODO: move this to chillerbot-ux component
+void CGameClient::SendFinishName()
+{
+	CNetMsg_Cl_ChangeInfo Msg;
+	Msg.m_pClan = g_Config.m_PlayerClan;
+	Msg.m_Country = g_Config.m_PlayerCountry;
+	Msg.m_pSkin = g_Config.m_ClPlayerSkin;
+	Msg.m_UseCustomColor = g_Config.m_ClPlayerUseCustomColor;
+	Msg.m_ColorBody = g_Config.m_ClPlayerColorBody;
+	Msg.m_ColorFeet = g_Config.m_ClPlayerColorFeet;
+	CMsgPacker Packer(&Msg);
+	Msg.Pack(&Packer);
+	Client()->SendMsg(0, &Packer, MSGFLAG_VITAL);
+	m_aCheckInfo[0] = Client()->GameTickSpeed();
 }
 
 void CGameClient::SendStartInfo7(bool Dummy)
@@ -4267,6 +4294,13 @@ void CGameClient::LoadMapSettings()
 	for(int i = 0; i < NUM_TUNEZONES; i++)
 	{
 		TuningList()[i] = TuningParams;
+
+		// only hardcode ddrace tuning for the tune zones
+		// and not the base tuning
+		// that one will be sent by the server if needed
+		if(!i)
+			continue;
+
 		TuningList()[i].Set("gun_curvature", 0);
 		TuningList()[i].Set("gun_speed", 1400);
 		TuningList()[i].Set("shotgun_curvature", 0);

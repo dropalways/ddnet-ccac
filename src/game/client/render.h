@@ -91,6 +91,8 @@ public:
 			Sixup.Reset();
 	}
 
+	IGraphics::CTextureHandle m_PlayerPicTexture; // chillerbot-ux
+
 	void Apply(const CSkin *pSkin)
 	{
 		m_OriginalRenderSkin = pSkin->m_OriginalSkin;
@@ -319,6 +321,7 @@ public:
 	void RenderSwitchOverlay(CSwitchTile *pSwitch, int w, int h, float Scale, float Alpha = 1.0f) const;
 	void RenderTuneOverlay(CTuneTile *pTune, int w, int h, float Scale, float Alpha = 1.0f) const;
 	void RenderTelemap(CTeleTile *pTele, int w, int h, float Scale, ColorRGBA Color, int RenderFlags) const;
+	void RenderSpeedupmap(CSpeedupTile *pSpeedup, int w, int h, float Scale, ColorRGBA Color, int RenderFlags) const;
 	void RenderSwitchmap(CSwitchTile *pSwitch, int w, int h, float Scale, ColorRGBA Color, int RenderFlags) const;
 	void RenderTunemap(CTuneTile *pTune, int w, int h, float Scale, ColorRGBA Color, int RenderFlags) const;
 };

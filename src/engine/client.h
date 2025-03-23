@@ -342,7 +342,12 @@ public:
 		MESSAGE_BOX_TYPE_INFO,
 	};
 	virtual void ShowMessageBox(const char *pTitle, const char *pMessage, EMessageBoxType Type = MESSAGE_BOX_TYPE_ERROR) = 0;
+
 	virtual void GetGpuInfoString(char (&aGpuInfo)[256]) = 0;
+
+	// chillerbot
+
+	virtual void ChillerBotLoadMap(const char *pMap) = 0;
 };
 
 class IGameClient : public IInterface

@@ -9,6 +9,7 @@
 #include <chrono>
 #include <deque>
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include <engine/console.h>
@@ -29,8 +30,6 @@
 #include <game/voting.h>
 
 #include <game/client/components/skins7.h>
-
-static constexpr const char *DEFAULT_SAVED_RCON_USER = "local-server";
 
 struct CServerProcess
 {
@@ -84,8 +83,6 @@ class CMenus : public CComponent
 	int DoButton_CheckBoxAutoVMarginAndSet(const void *pId, const char *pText, int *pValue, CUIRect *pRect, float VMargin);
 	int DoButton_CheckBox_Number(const void *pId, const char *pText, int Checked, const CUIRect *pRect);
 
-	bool DoLine_RadioMenu(CUIRect &View, const char *pLabel, std::vector<CButtonContainer> &vButtonContainers, const std::vector<const char *> &vLabels, const std::vector<int> &vValues, int &Value);
-
 	ColorHSLA DoLine_ColorPicker(CButtonContainer *pResetId, float LineSize, float LabelSize, float BottomMargin, CUIRect *pMainRect, const char *pText, unsigned int *pColorValue, ColorRGBA DefaultColor, bool CheckBoxSpacing = true, int *pCheckBoxValue = nullptr, bool Alpha = false);
 	ColorHSLA DoButton_ColorPicker(const CUIRect *pRect, unsigned int *pHslaColor, bool Alpha);
 	void DoLaserPreview(const CUIRect *pRect, ColorHSLA OutlineColor, ColorHSLA InnerColor, const int LaserType);
@@ -100,6 +97,7 @@ class CMenus : public CComponent
 	void DoJoystickAxisPicker(CUIRect View);
 	void DoJoystickBar(const CUIRect *pRect, float Current, float Tolerance, bool Active);
 
+	std::optional<std::chrono::nanoseconds> m_SkinListLastRefreshTime;
 	bool m_SkinListScrollToSelected = false;
 	std::optional<std::chrono::nanoseconds> m_SkinList7LastRefreshTime;
 	std::optional<std::chrono::nanoseconds> m_SkinPartsList7LastRefreshTime;
@@ -179,8 +177,6 @@ protected:
 	int m_Popup;
 	bool m_ShowStart;
 	bool m_MenuActive;
-
-	bool m_DummyNamePlatePreview = false;
 
 	bool m_JoinTutorial = false;
 	bool m_CreateDefaultFavoriteCommunities = false;
@@ -297,7 +293,6 @@ protected:
 		bool m_IsLink;
 		int m_StorageType;
 		time_t m_Date;
-		int64_t m_Size;
 
 		bool m_InfosLoaded;
 		bool m_Valid;
@@ -315,7 +310,7 @@ protected:
 			return bytes_be_to_uint(m_Info.m_aLength);
 		}
 
-		unsigned MapSize() const
+		unsigned Size() const
 		{
 			return bytes_be_to_uint(m_Info.m_aMapSize);
 		}
@@ -598,6 +593,13 @@ protected:
 	void RenderCommunityIcon(const SCommunityIcon *pIcon, CUIRect Rect, bool Active);
 	void UpdateCommunityIcons();
 
+	// skin favorite list
+	std::unordered_set<std::string> m_SkinFavorites;
+	static void Con_AddFavoriteSkin(IConsole::IResult *pResult, void *pUserData);
+	static void Con_RemFavoriteSkin(IConsole::IResult *pResult, void *pUserData);
+	static void ConfigSaveCallback(IConfigManager *pConfigManager, void *pUserData);
+	void OnConfigSave(IConfigManager *pConfigManager);
+
 	// found in menus_settings.cpp
 	void RenderLanguageSettings(CUIRect MainView);
 	bool RenderLanguageSelection(CUIRect MainView);
@@ -616,10 +618,6 @@ protected:
 	void RenderSettingsSound(CUIRect MainView);
 	void RenderSettings(CUIRect MainView);
 	void RenderSettingsCustom(CUIRect MainView);
-
-	std::vector<CButtonContainer> vButtonsContainersJoystickAbsolute = {{}, {}};
-	std::vector<CButtonContainer> vButtonsContainersNamePlateShow = {{}, {}, {}, {}};
-	std::vector<CButtonContainer> vButtonsContainersNamePlateKeyPresses = {{}, {}, {}, {}};
 
 	class CMapListItem
 	{
@@ -679,6 +677,7 @@ public:
 	bool IsServerRunning() const;
 
 	virtual void OnInit() override;
+	void OnConsoleInit() override;
 
 	virtual void OnStateChange(int NewState, int OldState) override;
 	virtual void OnWindowResize() override;
@@ -719,6 +718,7 @@ public:
 		SETTINGS_GRAPHICS,
 		SETTINGS_SOUND,
 		SETTINGS_DDNET,
+        SETTINGS_CCAC,
 		SETTINGS_ASSETS,
 
 		SETTINGS_LENGTH,
@@ -847,6 +847,7 @@ private:
 	// found in menus_settings.cpp
 	void RenderSettingsDDNet(CUIRect MainView);
 	void RenderSettingsAppearance(CUIRect MainView);
+	void RenderSettingsCCAC(CUIRect MainView);
 	bool RenderHslaScrollbars(CUIRect *pRect, unsigned int *pColor, bool Alpha, float DarkestLight);
 
 	CServerProcess m_ServerProcess;
